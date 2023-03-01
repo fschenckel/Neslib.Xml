@@ -18,6 +18,7 @@ type
     [Test] procedure TestConversion;
     [Test] procedure TestMutate;
     [Test] procedure TestTypes;
+    [Test] procedure TestQuote;
   end;
 
 type
@@ -186,6 +187,18 @@ begin
 
   var Xml := Doc.ToXml([]);
   Assert.AreEqual<XmlString>('<node ns:newattr="bar &amp; baz"/>', Xml);
+end;
+
+procedure TTestXmlAttribute.TestQuote;
+begin
+  var Doc := TXmlDocument.Create('node');
+  var Node := Doc.DocumentElement;
+
+  Node.AddAttribute('attr1', 'value with "double" quotes');
+  Node.AddAttribute('attr2', 'value with ''single'' quotes');
+
+  var Xml := Doc.ToXml([]);
+  Assert.AreEqual<XmlString>('<node attr1="value with &quot;double&quot; quotes" attr2="value with ''single'' quotes"/>', Xml);
 end;
 
 procedure TTestXmlAttribute.TestTypes;
@@ -419,7 +432,7 @@ end;
 procedure TTestXmlNode.TestElementByName;
 begin
   var Doc := TXmlDocument.Create;
-  Doc.Parse('<root><node1><node2><node3></node3></node2></node1></root>');
+  Doc.Parse('<root><node1><node2><!--comment--><node3></node3></node2></node1></root>');
 
   var Node := Doc.Root.ElementByName('root')
                       .ElementByName('node1')
@@ -458,7 +471,7 @@ end;
 procedure TTestXmlNode.TestNextSiblingByName;
 begin
   var Doc := TXmlDocument.Create;
-  Doc.Parse('<root><node1/><node2/><node3/><node4/></root>');
+  Doc.Parse('<root><node1/><node2/><node3/><!--comment--><node4/></root>');
 
   var Node := Doc.DocumentElement.FirstChild;
   Assert.AreEqual<XmlString>('node1', Node.Value);
@@ -473,7 +486,7 @@ end;
 procedure TTestXmlNode.TestPrevSiblingByName;
 begin
   var Doc := TXmlDocument.Create;
-  Doc.Parse('<root><node1/><node2/><node3/><node4/></root>');
+  Doc.Parse('<root><node1/><node2/><node3/><!--comment--><node4/></root>');
 
   var Node := Doc.DocumentElement.ElementByName('node4');
   Assert.AreEqual<XmlString>('node4', Node.Value);
@@ -540,30 +553,30 @@ begin
   var Doc := TXmlDocument.Create;
 
   Doc.Parse('<root/>');
-  Assert.AreEqual('', Doc.DocumentElement.Text);
+  Assert.AreEqual<XmlString>('', Doc.DocumentElement.Text);
 
   Doc.Parse('<root>foo</root>');
-  Assert.AreEqual('foo', Doc.DocumentElement.Text);
-  Assert.AreEqual('foo', Doc.DocumentElement.FirstChild.Text);
+  Assert.AreEqual<XmlString>('foo', Doc.DocumentElement.Text);
+  Assert.AreEqual<XmlString>('foo', Doc.DocumentElement.FirstChild.Text);
 
   Doc.Parse('<root> foo </root>');
-  Assert.AreEqual(' foo ', Doc.DocumentElement.Text);
+  Assert.AreEqual<XmlString>(' foo ', Doc.DocumentElement.Text);
 
   Doc.Parse('<root>foo<child/>bar</root>');
-  Assert.AreEqual('foo bar', Doc.DocumentElement.Text);
-  Assert.AreEqual('foo', Doc.DocumentElement.FirstChild.Text);
+  Assert.AreEqual<XmlString>('foo bar', Doc.DocumentElement.Text);
+  Assert.AreEqual<XmlString>('foo', Doc.DocumentElement.FirstChild.Text);
 
   Doc.Parse('<root>foo <child/>bar</root>');
-  Assert.AreEqual('foo bar', Doc.DocumentElement.Text);
-  Assert.AreEqual('foo ', Doc.DocumentElement.FirstChild.Text);
+  Assert.AreEqual<XmlString>('foo bar', Doc.DocumentElement.Text);
+  Assert.AreEqual<XmlString>('foo ', Doc.DocumentElement.FirstChild.Text);
 
   Doc.Parse('<root>foo<child/> bar</root>');
-  Assert.AreEqual('foo bar', Doc.DocumentElement.Text);
-  Assert.AreEqual('foo', Doc.DocumentElement.FirstChild.Text);
+  Assert.AreEqual<XmlString>('foo bar', Doc.DocumentElement.Text);
+  Assert.AreEqual<XmlString>('foo', Doc.DocumentElement.FirstChild.Text);
 
   Doc.Parse('<root>foo <child/> bar</root>');
-  Assert.AreEqual('foo  bar', Doc.DocumentElement.Text);
-  Assert.AreEqual('foo ', Doc.DocumentElement.FirstChild.Text);
+  Assert.AreEqual<XmlString>('foo  bar', Doc.DocumentElement.Text);
+  Assert.AreEqual<XmlString>('foo ', Doc.DocumentElement.FirstChild.Text);
 end;
 
 { TTestXmlDocument }

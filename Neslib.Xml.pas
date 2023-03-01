@@ -1589,7 +1589,9 @@ begin
         var ChildText := Child.Value;
         if (ChildText <> '') then
         begin
-          if (Result <> '') and (not Result.EndsWith(' ')) and (not ChildText.StartsWith(' ')) then
+          if (Result <> '') and (Result[Low(XmlString) + Length(Result) - 1] <> ' ') and
+            (ChildText <> '') and (ChildText[Low(XmlString)] <> ' ')
+          then
             Result := Result + ' ';
           Result := Result + ChildText;
         end;
@@ -1704,7 +1706,7 @@ begin
   Result := GetNextSibling;
   while (Result <> nil) do
   begin
-    if (Result.GetValueIndex = Index) then
+    if (Result.NodeType = TXmlNodeType.Element) and (Result.GetValueIndex = Index) then
       Exit;
 
     Result := Result.NextSibling;
@@ -1737,7 +1739,7 @@ begin
   Result := GetPrevSibling;
   while (Result.NextSibling <> nil) do
   begin
-    if (Result.GetValueIndex = Index) then
+    if (Result.NodeType = TXmlNodeType.Element) and (Result.GetValueIndex = Index) then
       Exit;
 
     Result := Result.GetPrevSibling;
@@ -2467,6 +2469,18 @@ begin
 end;
 
 procedure TXmlDocument.Save(const AWriter: TXmlWriter);
+
+  function WriteComments(const ANode: TXmlNode): TXmlNode;
+  begin
+    Result := ANode;
+    while (Result <> nil) and (Result.NodeType = TXmlNodeType.Comment) do
+    begin
+      AWriter.WriteComment(Result.GetValue);
+      Result := Result.NextSibling;
+      AWriter.NewLine;
+    end;
+  end;
+
 begin
   if (AWriter <> nil) and (FRoot <> nil) then
   begin
@@ -2474,10 +2488,13 @@ begin
     if (Root = nil) then
       Exit;
 
-    var Node := Root;
     var Depth := 0;
     var NewLine := False;
     var Indent := True;
+
+    { Write leading comments }
+    Root := WriteComments(Root);
+    var Node := Root;
 
     repeat
       var Value := Node.GetValue;
@@ -2502,7 +2519,7 @@ begin
               AWriter.Write(' ');
               AWriter.Write(Attr.Name);
               AWriter.Write('="');
-              AWriter.WriteEncoded(Attr.Value);
+              AWriter.WriteEncoded(Attr.Value, True);
               AWriter.Write('"');
               Attr := Attr.Next;
             end;
@@ -2560,7 +2577,7 @@ begin
         end;
 
         Node := Node.Parent;
-        if (Node.NodeType = TXmlNodeType.Element) then
+        if (Depth > 0) and (Node.NodeType = TXmlNodeType.Element) then
         begin
           Dec(Depth);
 
@@ -2581,6 +2598,8 @@ begin
     until (Node = Root);
     if (NewLine) then
       AWriter.NewLine;
+
+    WriteComments(Node.NextSibling);
   end;
 end;
 

@@ -866,6 +866,7 @@ var
   HasChild: Boolean;
   AChild: TXMLNode;
 begin
+  Result := TXmlNode.Create;  // Nil node
   With GetEnumerator do
     While MoveNext do
       Result := Current;

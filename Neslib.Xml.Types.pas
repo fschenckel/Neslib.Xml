@@ -41,7 +41,11 @@ type
 
     { Big-Endian UTF-32.
       Used when a document starts with a UTF-32 BE BOM. }
-    Utf32BigEndian);
+    Utf32BigEndian,
+
+    { Custom encoding
+      uses the encoding header element. }
+    CustomEncoding);
 
 type
   { Options to control XML output (eg. for IXmlDocument.Save and

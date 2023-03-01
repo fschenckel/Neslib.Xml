@@ -100,9 +100,15 @@ type
     procedure ParseCData;
     procedure AddAttribute(const ANameStart, ANameEnd, AValueStart,
       AValueEnd: PXmlChar);
+
+    /// <summary>Try to read the XML processing instructions</summary>
+    class function TryReadProcessingInstructions(const AStream: TStream; var AProcessingInstruction: RawByteString; InitialStreamPosition: Int64 = 0): Boolean;
+    /// <summary>Read the encoding out from the XML processing instructions</summary>
+    class function ReadEncoding(const AProcessingInstruction: RawByteString; var AEncoding: string): Boolean;
+
   protected
     constructor Create(const AXml: XmlString; const AEncoding: TXmlEncoding;
-      const AInternPool: TXmlStringInternPool); overload;
+                      const AInternPool: TXmlStringInternPool); overload;
   public
     destructor Destroy; override;
   {$ENDREGION 'Internal Declarations'}
@@ -311,7 +317,8 @@ implementation
 
 uses
   System.Character,
-  Neslib.Utf8;
+  Neslib.Utf8,
+  System.Math;
 
 procedure SwapEndian16(const ASource: Pointer; const ACount: Integer);
 begin
@@ -570,6 +577,7 @@ begin
   var Size := AStream.Size - StartPos;
   var BomSize: Integer;
   var Encoding: TXmlEncoding;
+  var ACustomEncoding: string;
 
   AStream.Read(Bom, 4);
   if (Bom = $0000FEFF) then
@@ -599,8 +607,22 @@ begin
   end
   else
   begin
-    { We assume UTF-8 if there is no BOM }
-    Encoding := TXmlEncoding.Utf8;
+    // fs 05/10/2022
+    // There's no BOM try to read the prolog
+    var ProcessingInstructions: RawByteString;
+    if TryReadProcessingInstructions(AStream, ProcessingInstructions, StartPos) then begin
+      ReadEncoding(ProcessingInstructions, ACustomEncoding);
+
+      if (ACustomEncoding.Length > 0) and (ACustomEncoding <> 'UTF-8') then
+        Encoding := TXmlEncoding.CustomEncoding
+      else
+        Encoding := TXmlEncoding.Utf8;  // Without BOM it should be UTF8 unless an encoding is specified
+
+    end
+    else
+      { We assume UTF-8 if there is no BOM }
+      Encoding := TXmlEncoding.Utf8;
+
     BomSize := 0;
   end;
 
@@ -671,6 +693,17 @@ begin
           {$ELSE}
           Xml := Utf32ToUtf16(@Bytes[0], Size div 4);
           {$ENDIF}
+        end;
+
+      // fs 05/10/2022  added decoding possibility using the XML Prolog encoding information
+      TXmlEncoding.CustomEncoding:
+        begin
+          var Decoding := TEncoding.GetEncoding(ACustomEncoding);
+          try
+            xml := Decoding.GetString(Bytes);
+          finally
+            Decoding.Free;
+          end;
         end;
     else
       Assert(False);
@@ -913,6 +946,38 @@ begin
   FCurrent := P + 1;
 end;
 
+class function TXmlReader.ReadEncoding(const AProcessingInstruction: RawByteString; var AEncoding: string): Boolean;
+begin
+  Result := False;
+  var AIdx := Pos(RawByteString('encoding'), AProcessingInstruction);
+
+  if AIdx > 0 then begin   // Encoding attrib is there
+    var tmpStr: RawByteString;
+    tmpStr := Copy(AProcessingInstruction, AIdx + 8 {Length of encoding});
+
+    // Find the first '"'
+    var P: PAnsiChar;
+    P := @(tmpStr[1]);
+    while (P^ <> #0) and (P^ <> '"') do
+      Inc(P);
+
+    if P^ <> #0 then begin
+      inc(P);  // skip '"'
+      var EncodingStart := P;
+      // Looking for the second '"'
+      while (P^ <> #0) and (P^ <> '"') do
+        Inc(P);
+
+      if P^ <> #0 then begin
+        Result := True;
+        P^ := #0;   // 0 terminal (We don't want the latest '"')
+
+        AEncoding := string(PAnsiChar(EncodingStart)).ToUpper;
+      end;
+    end;
+  end;
+end;
+
 function TXmlReader.SetValue(const AStart, AEnd: PXmlChar): Boolean;
 var
   Buf: TCharBuffer;
@@ -1012,7 +1077,7 @@ begin
       else
       begin
         Buf.Append(P^);
-        if (P^ > #$20) then
+        if (P^ > {#$1F}#$20) then
           Result := True;
       end;
 
@@ -1022,6 +1087,64 @@ begin
       FValueString := Buf.ToString;
   finally
     Buf.Release;
+  end;
+end;
+
+class function TXmlReader.TryReadProcessingInstructions(const AStream: TStream; var AProcessingInstruction: RawByteString; InitialStreamPosition: Int64): Boolean;
+const
+  cstBufSize = 256;
+var
+  AByteArray: TArray<Byte>;
+  P, PrologStart: PAnsiChar;
+
+  function ParseDeclaration: Boolean;
+  begin
+    while (P^ <> #0) and (P^ <> '>') do
+      Inc(P);
+
+    if (P^ <> #0) then
+      Result := True
+    else
+      Result := False;
+  end;
+
+begin
+  Result := False;
+  // Save current position of the stream
+  var StartPos := AStream.Position;
+  AStream.Position := InitialStreamPosition;  // Beginning
+
+  SetLength(AByteArray, cstBufSize + 1);
+  try
+    if AStream.Read(AByteArray, Min(cstBufSize, AStream.Size)) > 0 then begin
+      AByteArray[cstBufSize] := 0;  // Be sure to have a termination
+      P := PAnsiChar(@AByteArray[0]);
+      while True do begin
+        { Scan until '<' }
+        while (P^ <> #0) and (P^ <> '<') do
+          Inc(P);
+
+        if (P^ = #0) then
+          Exit(False);   // No prolog found !!!
+
+        PrologStart := P;   // Get the beginning of the prolog
+        inc(P);
+
+        if (P^ = '?') then begin
+          if ParseDeclaration then begin
+            (P + 1)^ := #0;   // Zero terminal
+            AProcessingInstruction := PAnsiChar(PrologStart);
+            Exit(True);
+          end;
+        end;
+      end;
+    end;
+
+
+  finally
+    SetLength(AByteArray, 0);
+    // Restore the initial position
+    AStream.Position := StartPos;
   end;
 end;
 

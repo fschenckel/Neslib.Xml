@@ -29,13 +29,15 @@ type
     [Test] procedure TestParseError_UnterminatedCharacterReference;
     [Test] procedure TestParseError_InvalidNumericCharacterReference;
     [Test] procedure TestParseError_UnknownCharacterReference;
+    [Test] procedure TestParseError_AllowUnknownCharacterReference;
     [Test] procedure TestParseError_InvalidCommentPrefix;
-    [Test] procedure TestParseError_InvalidCommentSuffix;
+    [Test] procedure TestParseError_UnclosedComment;
     [Test] procedure TestParseError_InvalidCData;
     [Test] procedure TestParseError_MissingEqualInAttribute;
     [Test] procedure TestParseError_InvalidAttributeQuote;
     [Test] procedure TestParseError_ElementNameMismatch;
     [Test] procedure TestIssue9_CommentsAtStart;
+    [Test] procedure TestIssue11;
   end;
 
 type
@@ -241,6 +243,16 @@ begin
   end;
 end;
 
+procedure TTestXmlReader.TestIssue11;
+begin
+  var Doc := TXmlDocument.Create;
+  Doc.Parse('<foo><!----></foo>');
+  Doc.Parse('<foo><!--bar> </bar--></foo>');
+  Doc.Parse('<foo><!-- >>>This is a comment<<< --></foo>');
+  Doc.Parse('<foo><!-- This is a comment<<< --></foo>');
+  Assert.Pass('Valid comments should pass.');
+end;
+
 procedure TTestXmlReader.TestIssue9_CommentsAtStart;
 
   procedure CheckDocument(const ADoc: IXmlDocument);
@@ -298,6 +310,22 @@ begin
   CheckDocument(Reconstructed);
 end;
 
+procedure TTestXmlReader.TestParseError_AllowUnknownCharacterReference;
+begin
+  var Doc := TXmlDocument.Create;
+  Doc.Parse('<foo>A &bar; B</foo>', [TXmlReaderOption.AllowUnknownNamedCharacterReferences]);
+
+  var Root := Doc.Root;
+  var Foo := Root.FirstChild;
+  Assert.AreEqual<TXmlNodeType>(TXmlNodeType.Element, Foo.NodeType);
+
+  var Text := Foo.FirstChild;
+  Assert.AreEqual<TXmlNodeType>(TXmlNodeType.Text, Text.NodeType);
+
+  var S := Text.Value;
+  Assert.AreEqual<XmlString>('A &bar; B', S);
+end;
+
 procedure TTestXmlReader.TestParseError_ElementNameMismatch;
 begin
   ExpectParseError('<foo></Foo>', RS_XML_ELEMENT_NAME_MISMATCH, 1, 6);
@@ -353,9 +381,16 @@ begin
   ExpectParseError('<foo><!-bar--></foo>', RS_XML_INVALID_COMMENT, 1, 6);
 end;
 
-procedure TTestXmlReader.TestParseError_InvalidCommentSuffix;
+procedure TTestXmlReader.TestParseError_UnclosedComment;
 begin
-  ExpectParseError('<foo><!--bar-></foo>', RS_XML_INVALID_COMMENT, 1, 6);
+  ExpectParseError('<foo><!--</foo>', RS_XML_UNEXPECTED_EOF, 1, 6);
+  ExpectParseError('<foo><!--></foo>', RS_XML_UNEXPECTED_EOF, 1, 6);
+  ExpectParseError('<foo><!---></foo>', RS_XML_UNEXPECTED_EOF, 1, 6);
+  ExpectParseError('<foo><!--bar-></foo>', RS_XML_UNEXPECTED_EOF, 1, 6);
+
+  var Doc := TXmlDocument.Create;
+  Doc.Parse('<foo><!-- This is an unclosed comment<bar></bar><!-- This is a properly closed comment --></foo>');
+  Assert.Pass('Self-healing comment should pass.');
 end;
 
 procedure TTestXmlReader.TestParseError_InvalidNumericCharacterReference;

@@ -50,6 +50,7 @@ begin
                         .ElementByName('fields')
                         .ElementByName('field')
                         .ElementByName('units');
+
     var Text := Units.FirstChild;
     if (Text.NodeType = TXmlNodeType.Text) and (Text.Value = 'arcsec') then
       Inc(Result);

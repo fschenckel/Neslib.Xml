@@ -98,8 +98,7 @@ type
     procedure ParseEndElement;
     procedure ParseComment;
     procedure ParseCData;
-    procedure AddAttribute(const ANameStart, ANameEnd, AValueStart,
-      AValueEnd: PXmlChar);
+    procedure AddAttribute(const ANameStart, ANameEnd, AValueStart, AValueEnd: PXmlChar);
 
     /// <summary>Try to read the XML processing instructions</summary>
     class function TryReadProcessingInstructions(const AStream: TStream; var AProcessingInstruction: RawByteString; InitialStreamPosition: Int64 = 0): Boolean;
@@ -107,8 +106,7 @@ type
     class function ReadEncoding(const AProcessingInstruction: RawByteString; var AEncoding: string): Boolean;
 
   protected
-    constructor Create(const AXml: XmlString; const AEncoding: TXmlEncoding;
-                      const AInternPool: TXmlStringInternPool); overload;
+    constructor Create(const AXml: XmlString; const AEncoding: TXmlEncoding; const AInternPool: TXmlStringInternPool); overload;
   public
     destructor Destroy; override;
   {$ENDREGION 'Internal Declarations'}
@@ -119,8 +117,7 @@ type
         AXml: the XML string to parse.
         AInternPool: a string intern pool used to store element and attribute
           names. }
-    constructor Create(const AXml: XmlString;
-      const AInternPool: TXmlStringInternPool); overload;
+    constructor Create(const AXml: XmlString; const AInternPool: TXmlStringInternPool); overload;
 
     { Creates a reader from a file.
 
@@ -131,8 +128,7 @@ type
 
       Returns:
         The reader. }
-    class function Load(const AFilename: String;
-      const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
+    class function Load(const AFilename: String; const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
 
     { Creates a reader from a stream.
 
@@ -143,8 +139,7 @@ type
 
       Returns:
         The reader. }
-    class function Load(const AStream: TStream;
-      const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
+    class function Load(const AStream: TStream; const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
 
     { Creates a reader from a byte array.
 
@@ -155,8 +150,7 @@ type
 
       Returns:
         The reader. }
-    class function Load(const ABytes: TBytes;
-      const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
+    class function Load(const ABytes: TBytes; const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
 
     { Encoding of the source file. }
     property Encoding: TXmlEncoding read FEncoding;
@@ -278,8 +272,7 @@ type
 
       This method will replace reseverd characters (such as '&' and '<') to
       character entities (eg. '&amp;' and '&lt;'. }
-    procedure WriteEncoded(const AValue: XmlString;
-      const AForAttribute: Boolean = False);
+    procedure WriteEncoded(const AValue: XmlString; const AForAttribute: Boolean = False);
 
     { Writes CData to the output.
 
@@ -809,25 +802,38 @@ begin
 
   Inc(P, 3);
   var Start := P;
-  var Level := 1;
 
-  { Move to end of comment, allowing for nested angled brackets. }
-  while (Level > 0) do
-  begin
-    if (P^ = '<') then
-      Inc(Level)
-    else if (P^ = '>') then
-      Dec(Level)
+//  { Move to end of comment, allowing for nested angled brackets. }
+//  while (Level > 0) do
+//  begin
+//    if (P^ = '<') then
+//      Inc(Level)
+//    else if (P^ = '>') then
+//      Dec(Level)
+//    else if (P^ = #0) then
+//      ParseError(@RS_XML_UNEXPECTED_EOF);
+//
+//    Inc(P);
+//  end;
+//
+//  if (P < (Start + 3)) or (P[-2] <> '-') or (P[-3] <> '-') then
+//    ParseError(@RS_XML_INVALID_COMMENT);
+
+  { Move to end of comment }
+  While true do begin
+    if (P^ = '>') then begin
+      if (P > (Start + 2)) and (P[-1] = '-') and (P[-2] = '-') then begin {found end of comment}
+        SetString(FValueString, Start, P - Start - 2);
+        Inc(P);
+        Break;   { Go out the loop }
+      end;
+    end
     else if (P^ = #0) then
       ParseError(@RS_XML_UNEXPECTED_EOF);
 
-    Inc(P);
+    inc(P);
   end;
 
-  if (P < (Start + 3)) or (P[-2] <> '-') or (P[-3] <> '-') then
-    ParseError(@RS_XML_INVALID_COMMENT);
-
-  SetString(FValueString, Start, P - Start - 3);
   FCurrent := P;
 end;
 

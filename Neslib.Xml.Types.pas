@@ -215,8 +215,7 @@ type
 
       If the map already contains an AKey/AID combination, then its value is
       overwritten. }
-    procedure Map(const AKey: Pointer; const AID: Integer;
-      const AValue: Pointer);
+    procedure Map(const AKey: Pointer; const AID: Integer; const AValue: Pointer);
 
     { Retrieves a value.
 
@@ -466,8 +465,7 @@ end;
   {$OVERFLOWCHECKS ON}
 {$ENDIF}
 
-procedure TXmlPointerMap.Map(const AKey: Pointer; const AID: Integer;
-  const AValue: Pointer);
+procedure TXmlPointerMap.Map(const AKey: Pointer; const AID: Integer; const AValue: Pointer);
 begin
   if (FCount >= FGrowThreshold) then
      Resize(Length(FItems) * 2);

@@ -319,8 +319,7 @@ type
       Returns:
         The first child element with an attribute with the given name and value,
         or nil if there is none. }
-    function ElementByAttribute(const AAttributeName,
-      AAttributeValue: XmlString): TXmlNode; overload;
+    function ElementByAttribute(const AAttributeName, AAttributeValue: XmlString): TXmlNode; overload;
 
     { Returns the first child element of a given name, and with an attribute
       with a given name and value.
@@ -333,8 +332,7 @@ type
       Returns:
         The first child element with the given name that has an attribute with
         the given atrribute name and value, or nil if there is none. }
-    function ElementByAttribute(const AElementName, AAttributeName,
-      AAttributeValue: XmlString): TXmlNode; overload;
+    function ElementByAttribute(const AElementName, AAttributeName, AAttributeValue: XmlString): TXmlNode; overload;
 
     { Returns the next sibling element with a given name.
 
@@ -342,8 +340,7 @@ type
         AElementName: the name to search for.
 
       Returns:
-        The next sibling element with the given element name, or nil if there is
-        none. }
+        The next sibling element with the given element name, or nil if there is none. }
     function NextSiblingByName(const AElementName: XmlString): TXmlNode;
 
     { Returns the previous sibling element with a given name.
@@ -352,8 +349,7 @@ type
         AElementName: the name to search for.
 
       Returns:
-        The previous sibling element with the given element name, or nil if there
-        is none. }
+        The previous sibling element with the given element name, or nil if there is none. }
     function PrevSiblingByName(const AElementName: XmlString): TXmlNode;
 
     { Returns the first attribute with a given name.
@@ -649,8 +645,7 @@ type
       Parameters:
         AFilename: the name of the XML file to save to.
         AOptions: (optional) XML formatting options. }
-    procedure Save(const AFilename: String;
-      const AOptions: TXmlOutputOptions = DEFAULT_XML_OUTPUT_OPTIONS); overload;
+    procedure Save(const AFilename: String; const AOptions: TXmlOutputOptions = DEFAULT_XML_OUTPUT_OPTIONS); overload;
 
     { Saves the XML document to a stream.
 
@@ -659,8 +654,7 @@ type
         AOptions: (optional) XML formatting options.
 
       Does nothing if AStream is nil. }
-    procedure Save(const AStream: TStream;
-      const AOptions: TXmlOutputOptions = DEFAULT_XML_OUTPUT_OPTIONS); overload;
+    procedure Save(const AStream: TStream; const AOptions: TXmlOutputOptions = DEFAULT_XML_OUTPUT_OPTIONS); overload;
 
     { Saves the XML document to an XML writer.
 

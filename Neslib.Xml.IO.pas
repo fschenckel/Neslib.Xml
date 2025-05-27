@@ -12,6 +12,16 @@ uses
   Neslib.Xml.Types;
 
 type
+  { Options to customize XML reading }
+  TXmlReaderOption = (
+    { Allow unknown named character references. These are named character
+      references other than the standard &amp; &apos; &lt; &gt; and &quot;
+      ones.
+      If set, unknown character references will be parsed as-is. }
+    AllowUnknownNamedCharacterReferences);
+  TXmlReaderOptions = set of TXmlReaderOption;
+
+type
   { The current state of an IXmlReader. }
   TXmlReaderState = (
     { The end of the XML stream has been reached. }
@@ -39,7 +49,7 @@ type
   EXmlParserError = class(Exception)
   {$REGION 'Internal Declarations'}
   private
-    FXml: PXmlChar;
+    FXml: XmlString;
     FLineNumber: Integer;
     FColumnNumber: Integer;
     FPosition: Integer;
@@ -48,7 +58,7 @@ type
   private
     procedure CalcLineAndColumnNumber;
   public
-    constructor Create(const AMsg: String; const AXml: PXmlChar;
+    constructor Create(const AMsg: String; const AXml: XmlString;
       const APosition: Integer);
   {$ENDREGION 'Internal Declarations'}
   public
@@ -88,6 +98,7 @@ type
     FAttributes: TList<TXmlReaderAttribute>;
     FEncoding: TXmlEncoding;
     FInternPool: TXmlStringInternPool;
+    FOptions: TXmlReaderOptions;
     FIsEmptyElement: Boolean;
     function GetAttributeCount: Integer; //inline;
     function GetAttribute(const AIndex: Integer): TXmlReaderAttribute; //inline;
@@ -104,9 +115,9 @@ type
     class function TryReadProcessingInstructions(const AStream: TStream; var AProcessingInstruction: RawByteString; InitialStreamPosition: Int64 = 0): Boolean;
     /// <summary>Read the encoding out from the XML processing instructions</summary>
     class function ReadEncoding(const AProcessingInstruction: RawByteString; var AEncoding: string): Boolean;
-
   protected
-    constructor Create(const AXml: XmlString; const AEncoding: TXmlEncoding; const AInternPool: TXmlStringInternPool); overload;
+    constructor Create(const AXml: XmlString; const AEncoding: TXmlEncoding; const AInternPool: TXmlStringInternPool;
+                        const AOptions: TXmlReaderOptions); overload;
   public
     destructor Destroy; override;
   {$ENDREGION 'Internal Declarations'}
@@ -116,8 +127,10 @@ type
       Parameters:
         AXml: the XML string to parse.
         AInternPool: a string intern pool used to store element and attribute
-          names. }
-    constructor Create(const AXml: XmlString; const AInternPool: TXmlStringInternPool); overload;
+          names.
+        AOptions: (optional) options to customize the reader }
+    constructor Create(const AXml: XmlString; const AInternPool: TXmlStringInternPool;
+                        const AOptions: TXmlReaderOptions = []); overload;
 
     { Creates a reader from a file.
 
@@ -125,10 +138,12 @@ type
         AFilename: the name of the file to load.
         AInternPool: a string intern pool used to store element and attribute
           names.
+        AOptions: (optional) options to customize the reader
 
       Returns:
         The reader. }
-    class function Load(const AFilename: String; const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
+    class function Load(const AFilename: String; const AInternPool: TXmlStringInternPool;
+                          const AOptions: TXmlReaderOptions = []): TXmlReader; overload; static;
 
     { Creates a reader from a stream.
 
@@ -136,10 +151,13 @@ type
         AStream: the stream to load.
         AInternPool: a string intern pool used to store element and attribute
           names.
+        AOptions: (optional) options to customize the reader
 
       Returns:
         The reader. }
-    class function Load(const AStream: TStream; const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
+    class function Load(const AStream: TStream;
+      const AInternPool: TXmlStringInternPool;
+      const AOptions: TXmlReaderOptions = []): TXmlReader; overload; static;
 
     { Creates a reader from a byte array.
 
@@ -147,10 +165,13 @@ type
         ABytes: the byte array containing the XML data.
         AInternPool: a string intern pool used to store element and attribute
           names.
+        AOptions: (optional) options to customize the reader
 
       Returns:
         The reader. }
-    class function Load(const ABytes: TBytes; const AInternPool: TXmlStringInternPool): TXmlReader; overload; static;
+    class function Load(const ABytes: TBytes;
+      const AInternPool: TXmlStringInternPool;
+      const AOptions: TXmlReaderOptions = []): TXmlReader; overload; static;
 
     { Encoding of the source file. }
     property Encoding: TXmlEncoding read FEncoding;
@@ -454,7 +475,7 @@ end;
 procedure EXmlParserError.CalcLineAndColumnNumber;
 begin
   var LineNum := 1;
-  var P := FXml;
+  var P := PChar(FXml);
   var LineStart := P;
   for var I := 0 to FPosition - 1 do
   begin
@@ -469,7 +490,7 @@ begin
   FColumnNumber := P - LineStart + 1;
 end;
 
-constructor EXmlParserError.Create(const AMsg: String; const AXml: PXmlChar;
+constructor EXmlParserError.Create(const AMsg: String; const AXml: XmlString;
   const APosition: Integer);
 begin
   inherited Create(AMsg);
@@ -511,19 +532,21 @@ begin
 end;
 
 constructor TXmlReader.Create(const AXml: XmlString;
-  const AInternPool: TXmlStringInternPool);
+  const AInternPool: TXmlStringInternPool; const AOptions: TXmlReaderOptions);
 begin
-  Create(AXml, TXmlEncoding.Utf16, AInternPool);
+  Create(AXml, TXmlEncoding.Utf16, AInternPool, AOptions);
 end;
 
 constructor TXmlReader.Create(const AXml: XmlString;
-  const AEncoding: TXmlEncoding; const AInternPool: TXmlStringInternPool);
+  const AEncoding: TXmlEncoding; const AInternPool: TXmlStringInternPool;
+  const AOptions: TXmlReaderOptions);
 begin
   inherited Create;
   FAttributes := TList<TXmlReaderAttribute>.Create;
   FXml := AXml;
   FEncoding := AEncoding;
   FInternPool := AInternPool;
+  FOptions := AOptions;
   FCurrent := PXmlChar(FXml);
 end;
 
@@ -544,29 +567,32 @@ begin
 end;
 
 class function TXmlReader.Load(const AFilename: String;
-  const AInternPool: TXmlStringInternPool): TXmlReader;
+  const AInternPool: TXmlStringInternPool;
+  const AOptions: TXmlReaderOptions): TXmlReader;
 begin
   var Stream := TFileStream.Create(AFilename, fmOpenRead or fmShareDenyWrite);
   try
-    Result := Load(Stream, AInternPool);
+    Result := Load(Stream, AInternPool, AOptions);
   finally
     Stream.Free;
   end;
 end;
 
 class function TXmlReader.Load(const ABytes: TBytes;
-  const AInternPool: TXmlStringInternPool): TXmlReader;
+  const AInternPool: TXmlStringInternPool;
+  const AOptions: TXmlReaderOptions): TXmlReader;
 begin
   var Stream := TBytesStream.Create(ABytes);
   try
-    Result := Load(Stream, AInternPool);
+    Result := Load(Stream, AInternPool, AOptions);
   finally
     Stream.Free;
   end;
 end;
 
 class function TXmlReader.Load(const AStream: TStream;
-  const AInternPool: TXmlStringInternPool): TXmlReader;
+  const AInternPool: TXmlStringInternPool;
+  const AOptions: TXmlReaderOptions): TXmlReader;
 begin
   if (AStream = nil) then
     Exit(nil);
@@ -710,7 +736,7 @@ begin
     end;
   end;
 
-  Result := TXmlReader.Create(Xml, Encoding, AInternPool);
+  Result := TXmlReader.Create(Xml, Encoding, AInternPool, AOptions);
 end;
 
 function TXmlReader.Next(out AState: TXmlReaderState): Boolean;
@@ -802,38 +828,19 @@ begin
 
   Inc(P, 3);
   var Start := P;
+  var Closed := False;
 
-//  { Move to end of comment, allowing for nested angled brackets. }
-//  while (Level > 0) do
-//  begin
-//    if (P^ = '<') then
-//      Inc(Level)
-//    else if (P^ = '>') then
-//      Dec(Level)
-//    else if (P^ = #0) then
-//      ParseError(@RS_XML_UNEXPECTED_EOF);
-//
-//    Inc(P);
-//  end;
-//
-//  if (P < (Start + 3)) or (P[-2] <> '-') or (P[-3] <> '-') then
-//    ParseError(@RS_XML_INVALID_COMMENT);
-
-  { Move to end of comment }
-  While true do begin
-    if (P^ = '>') then begin
-      if (P > (Start + 2)) and (P[-1] = '-') and (P[-2] = '-') then begin {found end of comment}
-        SetString(FValueString, Start, P - Start - 2);
-        Inc(P);
-        Break;   { Go out the loop }
-      end;
-    end
-    else if (P^ = #0) then
+  { Move to end of comment. }
+  while not Closed do
+  begin
+    if (P^ = #0) then
       ParseError(@RS_XML_UNEXPECTED_EOF);
 
-    inc(P);
+    Closed := (P >= (Start + 2)) and (P^ = '>') and (P[-1] = '-') and (P[-2] = '-');
+    Inc(P);
   end;
 
+  SetString(FValueString, Start, P - Start - 3);
   FCurrent := P;
 end;
 
@@ -1084,13 +1091,24 @@ begin
            Result := True;
           end;
         end
+        else if (TXmlReaderOption.AllowUnknownNamedCharacterReferences in FOptions) then
+        begin
+          Buf.Append('&');
+          while (Start < P) do
+          begin
+            Buf.Append(Start^);
+            Inc(Start);
+          end;
+          Buf.Append(';');
+          Result := True;
+        end
         else
           ParseError(@RS_XML_CHARACTER_REFERENCE);
       end
       else
       begin
         Buf.Append(P^);
-        if (P^ > {#$1F}#$20) then
+        if (P^ > #$20) then
           Result := True;
       end;
 
